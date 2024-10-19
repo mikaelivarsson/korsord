@@ -1,0 +1,2 @@
+# korsord
+Create swedish crosswords

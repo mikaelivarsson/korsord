@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import svgwrite
 import argparse
@@ -104,9 +105,13 @@ def wrap_text(text, max_width, font_size):
     """ wrap text so it fits in a cell """
     wrapped = []
     lines = text.split('\\n')
+    lines = [line if line != '' else '\n' for line in lines]
     max_chars_per_line = max_width // (font_size // 2)
     for line in lines:
-        wrapped.extend(wrap(line, max_chars_per_line))
+        if line == '\n':
+            wrapped.append('')
+        else:
+            wrapped.extend(wrap(line, max_chars_per_line))
     return wrapped
 
 def draw_arrow(dwg, start_pos, end_pos):
@@ -130,8 +135,8 @@ def draw_arrow(dwg, start_pos, end_pos):
     right_y = arrow_base_y - normal_y * 5 / 2
     dwg.add(dwg.polygon(points=[end_pos, (left_x, left_y), (right_x, right_y)], fill='black'))
 
-def draw_line(dwg, start_pos, end_pos):
-    dwg.add(dwg.line(start=start_pos, end=end_pos, stroke='black'))
+def draw_line(dwg, start_pos, end_pos, stroke_width=1):
+    dwg.add(dwg.line(start=start_pos, end=end_pos, stroke='black', stroke_width=stroke_width))
 
 def draw_dividerh(dwg, alpha, cell_size=40):
     row, col = alpha_to_index(alpha)
@@ -220,6 +225,17 @@ def draw_arrowur(dwg, alpha, cell_size=40):
     draw_line(dwg, line_start, line_end)
     draw_arrow(dwg, arrow_start, arrow_end)
 
+def draw_arrowdr(dwg, alpha, cell_size=40):
+    row, col = alpha_to_index(alpha)
+    top_left_x = col * cell_size
+    top_left_y = row * cell_size
+    line_start = (top_left_x + 3, top_left_y + cell_size - 7)
+    line_end = (top_left_x + 3, top_left_y + cell_size + 5)
+    arrow_start = (top_left_x + 2.5, top_left_y + cell_size + 5)
+    arrow_end = (top_left_x + 10, top_left_y + cell_size + 5)
+    draw_line(dwg, line_start, line_end)
+    draw_arrow(dwg, arrow_start, arrow_end)
+
 def draw_trid(dwg, alpha, cell_size=40):
     row, col = alpha_to_index(alpha)
     x = col * cell_size
@@ -233,6 +249,30 @@ def draw_trir(dwg, alpha, cell_size=40):
     y = row * cell_size
     triangle_coordinates = [(x, y + 15), (x, y + 25), (x + 5, y + 20)]
     dwg.add(dwg.polygon(points=triangle_coordinates, fill='white', stroke='black', stroke_width=1))
+
+def draw_lineh(dwg, alpha, cell_size=40):
+    row, col = alpha_to_index(alpha)
+    top_left_x = col * cell_size
+    top_left_y = row * cell_size
+    line_start = (top_left_x, top_left_y + cell_size/2)
+    line_end = (top_left_x + cell_size, top_left_y + cell_size/2)
+    draw_line(dwg, line_start, line_end, stroke_width=4)
+
+def draw_brd(dwg, alpha, cell_size=40):
+    row, col = alpha_to_index(alpha)
+    top_left_x = col * cell_size
+    top_left_y = row * cell_size
+    line_start = (top_left_x, top_left_y + cell_size/2)
+    line_end = (top_left_x + cell_size/2, top_left_y + cell_size/2)
+    draw_line(dwg, line_start, line_end, stroke_width=4)
+    line_start = (top_left_x + cell_size/2, top_left_y + cell_size/2 - 2)
+    line_end = (top_left_x + cell_size/2, top_left_y + cell_size - 5)
+    draw_line(dwg, line_start, line_end, stroke_width=4)
+    x = top_left_x
+    y = top_left_y
+    tri_cords = [(x+12, y+cell_size-10), (x+cell_size-12, y+cell_size-10), 
+            (x+cell_size/2, y+cell_size-1)]
+    dwg.add(dwg.polygon(points=tri_cords, fill='black', stroke='black', stroke_width='1'))
 
 def draw_copyright(dwg, alpha, cell_size=40):
     row, col = alpha_to_index(alpha)
@@ -283,31 +323,32 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
                                     font_size=30,
                                     font_family='Dom Casual D',
                                     fill='black'))
-        # draw clue boxes and wrap text in them
-        for(start_row, start_col, end_row, end_col, clue) in clue_boxes:
-            x = start_col * cell_size
-            y = start_row * cell_size
-            box_width = (end_col - start_col + 1) * cell_size
-            box_height = (end_row - start_row + 1) * cell_size
 
-            fill_color = 'white'
-            dwg.add(dwg.rect(insert=(x,y), size=(box_width, box_height), fill=fill_color, stroke='black'))
-            # wrap and draw the clue text
-            if start_row == end_row:
-                wrapped_clue = wrap_text(clue, box_width, font_size=10)
-            else:
-                wrapped_clue = wrap_text(clue, box_height, font_size=10)
+    # draw clue boxes and wrap text in them
+    for(start_row, start_col, end_row, end_col, clue) in clue_boxes:
+        x = start_col * cell_size
+        y = start_row * cell_size
+        box_width = (end_col - start_col + 1) * cell_size
+        box_height = (end_row - start_row + 1) * cell_size
 
-            clue_height = len(wrapped_clue) * 10
-            vertical_offset = (box_height - clue_height) / 2 + 10
+        fill_color = 'white'
+#        dwg.add(dwg.rect(insert=(x,y), size=(box_width, box_height), fill=fill_color, stroke='black'))
+        # wrap and draw the clue text
+        if start_row == end_row:
+            wrapped_clue = wrap_text(clue, box_width, font_size=10)
+        else:
+            wrapped_clue = wrap_text(clue, box_height, font_size=10)
 
-            for i, line in enumerate(wrapped_clue):
-                dwg.add(dwg.text(line,
-                                 insert=(x + box_width / 2, y + vertical_offset + (i * 10)),
-                                 text_anchor = "middle",
-                                 font_size=10,
-                                 font_family = 'Dom Casual D',
-                                 fill='black'))
+        clue_height = len(wrapped_clue) * 10
+        vertical_offset = (box_height - clue_height) / 2 + 10
+
+        for i, line in enumerate(wrapped_clue):
+            dwg.add(dwg.text(line,
+                             insert=(x + box_width / 2, y + vertical_offset + (i * 10)),
+                             text_anchor = "middle",
+                             font_size=10,
+                             font_family = 'Dom Casual D',
+                             fill='black'))
 
     for position, command in decorations:
         if command == 'CR':
@@ -324,6 +365,8 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
             draw_arrowrd(dwg, position)
         elif command == 'UR':
             draw_arrowur(dwg, position)
+        elif command == 'DR':
+            draw_arrowdr(dwg, position)
         elif command == 'TR':
             draw_trir(dwg, position)
         elif command == 'TD':
@@ -334,6 +377,10 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
             draw_dividerh(dwg, position)
         elif command == 'DV':
             draw_dividerv(dwg, position)
+        elif command == 'LH':
+            draw_lineh(dwg, position)
+        elif command == 'BRD':
+            draw_brd(dwg, position)
 
     dwg.save()
 

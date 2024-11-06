@@ -7,6 +7,7 @@ from textwrap import wrap
 from datetime import datetime
 
 highlightcolor = 'lightsteelblue'
+clue_font_size = 10
 
 def read_input(filename):
     with open(filename, 'r') as file:
@@ -23,10 +24,20 @@ def read_input(filename):
     decorations_section = sections[3].splitlines()
 
     words = [line.rstrip('\n').upper() for line in words_section]
-    clues_with_positions = [
-        (clue.split(maxsplit=1)[1], clue.split(maxsplit=1)[0][:-2], clue.split(maxsplit=1)[0][-2], int(clue.split(maxsplit=1)[0][-1]))
-        for clue in clues_section
-    ]
+
+    clues_with_positions = []
+    for line in clues_section:
+        parts = line.split(maxsplit=2)
+        if len(parts) < 3:
+            raise ValueError("Each clue line must contain a position, font size, and a clue text.")
+        position = parts[0]
+        font_size = int(parts[1])
+        clue = parts[2]
+        start_position = position[:-2]
+        direction = position[-2]
+        span = int(position[-1])
+        clues_with_positions.append((clue, start_position, direction, span, font_size))
+
     highlighted_positions = [line.strip() for line in highlights_section]
     decorations = [(line.split()[0], line.split()[1]) for line in decorations_section]
 
@@ -42,11 +53,13 @@ def read_clues_from_file(filename):
     clues_with_positions = []
     with open(filename, 'r') as file:
         for line in file:
-            position, clue = line.strip().split(maxsplit=1)
+            parts = line.strip().split(maxsplit=2)
+            position, clue = parts[0], parts[1]
+            font_size = int(parts[2]) if len(parts) > 2 else clue_font_size
             start_position = position[:-2]
             direction = position[-2]
             span = int(position[-1])
-            clues_with_positions.append((clue, start_position, direction, span))
+            clues_with_positions.append((clue, start_position, direction, span, font_size))
     return clues_with_positions
 
 def read_highlights(filename):
@@ -86,17 +99,17 @@ def create_clue_grid(clues_with_positions, grid_size):
     grid = [['' for _ in range(grid_size)] for _ in range(grid_size)]
     merged_cells = set()
     clue_boxes = []
-    for clue, position, direction, span in clues_with_positions:
+    for clue, position, direction, span, font_size in clues_with_positions:
         row_index, col_index = alpha_to_index(position)
         # place clue only once and note which are merged cells, determine the covered area
         if direction.upper() == 'H':
             grid[row_index][col_index] = clue
-            clue_boxes.append((row_index, col_index, row_index, col_index + span - 1, clue))
+            clue_boxes.append((row_index, col_index, row_index, col_index + span - 1, clue, font_size))
             for i in range(1, span):
                 merged_cells.add((row_index, col_index + i))
         elif direction.upper() == 'V':
             grid[row_index][col_index] = clue
-            clue_boxes.append((row_index, col_index, row_index + span - 1, col_index, clue))
+            clue_boxes.append((row_index, col_index, row_index + span - 1, col_index, clue, font_size))
             for i in range(1, span):
                 merged_cells.add((row_index + i, col_index))
     return grid, merged_cells, clue_boxes
@@ -144,6 +157,22 @@ def draw_dividerh(dwg, alpha, cell_size=40):
     top_left_y = row * cell_size
     line_start = (top_left_x, top_left_y + cell_size/2)
     line_end = (top_left_x + cell_size, top_left_y + cell_size/2)
+    draw_line(dwg, line_start, line_end)
+
+def draw_dh2(dwg, alpha, cell_size=40):
+    row, col = alpha_to_index(alpha)
+    top_left_x = col * cell_size
+    top_left_y = row * cell_size
+    line_start = (top_left_x, top_left_y + cell_size/2 -3)
+    line_end = (top_left_x + cell_size, top_left_y + cell_size/2 -3)
+    draw_line(dwg, line_start, line_end)
+
+def draw_dh3(dwg, alpha, cell_size=40):
+    row, col = alpha_to_index(alpha)
+    top_left_x = col * cell_size
+    top_left_y = row * cell_size
+    line_start = (top_left_x, top_left_y + cell_size/2 +3)
+    line_end = (top_left_x + cell_size, top_left_y + cell_size/2 +3)
     draw_line(dwg, line_start, line_end)
 
 def draw_dividerv(dwg, alpha, cell_size=40):
@@ -325,7 +354,7 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
                                     fill='black'))
 
     # draw clue boxes and wrap text in them
-    for(start_row, start_col, end_row, end_col, clue) in clue_boxes:
+    for(start_row, start_col, end_row, end_col, clue, font_size) in clue_boxes:
         x = start_col * cell_size
         y = start_row * cell_size
         box_width = (end_col - start_col + 1) * cell_size
@@ -335,18 +364,18 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
 #        dwg.add(dwg.rect(insert=(x,y), size=(box_width, box_height), fill=fill_color, stroke='black'))
         # wrap and draw the clue text
         if start_row == end_row:
-            wrapped_clue = wrap_text(clue, box_width, font_size=10)
+            wrapped_clue = wrap_text(clue, box_width, font_size=font_size)
         else:
-            wrapped_clue = wrap_text(clue, box_height, font_size=10)
+            wrapped_clue = wrap_text(clue, box_height, font_size=font_size)
 
-        clue_height = len(wrapped_clue) * 10
-        vertical_offset = (box_height - clue_height) / 2 + 10
+        clue_height = len(wrapped_clue) * font_size
+        vertical_offset = (box_height - clue_height) / 2 + font_size
 
         for i, line in enumerate(wrapped_clue):
             dwg.add(dwg.text(line,
-                             insert=(x + box_width / 2, y + vertical_offset + (i * 10)),
+                             insert=(x + box_width / 2, y + vertical_offset + (i * font_size)),
                              text_anchor = "middle",
-                             font_size=10,
+                             font_size=font_size,
                              font_family = 'Dom Casual D',
                              fill='black'))
 
@@ -381,6 +410,10 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
             draw_lineh(dwg, position)
         elif command == 'BRD':
             draw_brd(dwg, position)
+        elif command == 'DH2':
+            draw_dh2(dwg, position)
+        elif command == 'DH3':
+            draw_dh3(dwg, position)
 
     dwg.save()
 

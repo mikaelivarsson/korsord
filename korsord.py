@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import svgwrite
+from svgwrite.extensions import Inkscape
 import argparse
 from textwrap import wrap
 from datetime import datetime
@@ -328,6 +329,8 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
 
     # create an svg drawing object
     dwg = svgwrite.Drawing(filename, profile='tiny', size=(cell_size * num_cols, cell_size * num_rows))
+    inkscape = Inkscape(dwg)
+    words_layer = inkscape.layer(label="Words", locked=False)
 
     highlighted_indices = [alpha_to_index(pos) for pos in highlighted_positions]
 
@@ -346,12 +349,16 @@ def create_crossword(filename, grid, clue_grid, highlighted_positions, merged_ce
             # if the cell contains a letter, add the letter text, if not hidden
             if not hide_words:
                 if grid[row][col] != '':
-                    dwg.add(dwg.text(grid[row][col],
-                                    insert=(x + cell_size/2, y + cell_size/2 + 10),
-                                    text_anchor="middle",
-                                    font_size=30,
-                                    font_family='Dom Casual D',
-                                    fill='black'))
+                    words_layer.add(dwg.text(
+                        grid[row][col],
+                        insert=(x + cell_size/2, y + cell_size/2 + 10),
+                        text_anchor="middle",
+                        font_size=30,
+                        font_family='Dom Casual D',
+                        fill='black'
+                    ))
+
+    dwg.add(words_layer)
 
     # draw clue boxes and wrap text in them
     for(start_row, start_col, end_row, end_col, clue, font_size) in clue_boxes:
